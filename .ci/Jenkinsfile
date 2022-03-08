@@ -304,14 +304,16 @@ def archiveArtifactsSafe(remotePath, artifacts) {
 }
 
 def withMage(Closure body) {
-  withGoEnvUnix.installPackages(version: readFile(file: '.go-version')?.trim(),
-                                pkgs: [
-                                       "github.com/magefile/mage",
-                                       "github.com/elastic/go-licenser",
-                                       "golang.org/x/tools/cmd/goimports",
-                                       "github.com/jstemmer/go-junit-report",
-                                       "gotest.tools/gotestsum"
-                                      ]) {
-    body()
+  [
+    "github.com/magefile/mage",
+    "github.com/elastic/go-licenser",
+    "golang.org/x/tools/cmd/goimports",
+    "github.com/jstemmer/go-junit-report",
+    "gotest.tools/gotestsum"
+  ].each{ p ->
+    retryWithSleep(retries: 3, seconds: 5, backoff: true){
+      sh(label: "Installing ${p}", script: "go install ${p}@latest")
+    }
   }
+  body()
 }
