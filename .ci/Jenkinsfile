@@ -1,6 +1,6 @@
 #!/usr/bin/env groovy
 
-@Library('apm@current') _
+@Library('apm@feature/support-node-labels-k8s') _
 
 pipeline {
   agent { kubernetes { yamlFile '.ci/k8s/manifest.yml' } }
