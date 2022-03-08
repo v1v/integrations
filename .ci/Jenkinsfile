@@ -46,9 +46,8 @@ pipeline {
     stage('Check Go sources') {
       steps {
         container('golang') {
-          sh 'env | sort'
           dir("${BASE_DIR}"){
-            withMageEnv(){
+            withMage() {
               sh(label: 'Checks and builds Go sources', script: 'mage -debug check')
               checkGitDiff()
             }
@@ -133,10 +132,8 @@ def cleanup(){
 }
 
 def useElasticPackage() {
-  withGoEnv() {
-    dir("${BASE_DIR}/build") {
-      sh(label: 'Install elastic-package', script: 'go build github.com/elastic/elastic-package')
-    }
+  dir("${BASE_DIR}/build") {
+    sh(label: 'Install elastic-package', script: 'go build github.com/elastic/elastic-package')
   }
 }
 
@@ -304,4 +301,17 @@ def archiveArtifactsSafe(remotePath, artifacts) {
     bucket: "gs://${JOB_GCS_BUCKET_INTERNAL}/${env.JOB_NAME}-${env.BUILD_ID}/${remotePath}",
     credentialsId: "${JOB_GCS_EXT_CREDENTIALS}",
     pattern: artifacts)
+}
+
+def withMage(Closure body) {
+  withGoEnvUnix.installPackages(version: readFile(file: '.go-version')?.trim(),
+                                pkgs: [
+                                       "github.com/magefile/mage",
+                                       "github.com/elastic/go-licenser",
+                                       "golang.org/x/tools/cmd/goimports",
+                                       "github.com/jstemmer/go-junit-report",
+                                       "gotest.tools/gotestsum"
+                                      ]) {
+    body()
+  }
 }
