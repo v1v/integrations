@@ -8,6 +8,12 @@ spec:
     - sleep
     args:
     - infinity
+  - name: golang
+    image: golang:1.17.6
+    command:
+    - sleep
+    args:
+    - infinity
   - name: docker
     image: docker:20.10.12-dind
     securityContext:
