@@ -65,43 +65,46 @@ pipeline {
             findFiles()?.findAll{ !it.name.endsWith('@tmp') }?.collect{ it.name }?.sort()?.each {
               if (isPrAffected(it)) {
                 integrations[it] = {
-                  container('ubuntu') {
-                    stage("${it}: check") {
-                      deleteDir()
-                      unstashV2(name: 'source', bucket: "${JOB_GCS_BUCKET}", credentialsId: "${JOB_GCS_CREDENTIALS}")
-                      useElasticPackage()
-                      try {
-                        dir("${BASE_DIR}/packages/${it}") {
-                          sh(label: "Check integration: ${it}", script: '../../build/elastic-package check -v')
-                          prepareStack()
-                          withKubernetes() {
-                            withCloudTestEnv() {
-                              sh(label: "Test integration: ${it}", script: '''
-                                eval "$(../../build/elastic-package stack shellinit)"
-                                ../../build/elastic-package test -v --report-format xUnit --report-output file --test-coverage
-                                ''')
+                  def uuid = UUID.randomUUID().toString()
+                  dir(uuid) {
+                    container('ubuntu') {
+                      stage("${it}: check") {
+                        deleteDir()
+                        unstashV2(name: 'source', bucket: "${JOB_GCS_BUCKET}", credentialsId: "${JOB_GCS_CREDENTIALS}")
+                        useElasticPackage()
+                        try {
+                          dir("${BASE_DIR}/packages/${it}") {
+                            sh(label: "Check integration: ${it}", script: '../../build/elastic-package check -v')
+                            prepareStack()
+                            withKubernetes() {
+                              withCloudTestEnv() {
+                                sh(label: "Test integration: ${it}", script: '''
+                                  eval "$(../../build/elastic-package stack shellinit)"
+                                  ../../build/elastic-package test -v --report-format xUnit --report-output file --test-coverage
+                                  ''')
+                              }
                             }
-                          }
 
-                          // Publish package to the Package Storage
-                          if (env.BRANCH_NAME == 'main') {
-                            withCredentials([string(credentialsId: "${GITHUB_TOKEN_CREDENTIALS}", variable: 'GITHUB_TOKEN')]) {
-                              sh(label: 'Configure Git user.name', script: 'git config --global user.name "Elastic Machine"')
-                              sh(label: 'Configure Git user.email', script: 'git config --global user.email "elasticmachine@users.noreply.github.com"')
-                              sh(label: "Publish integration: ${it}", script: '../../build/elastic-package publish -v --fork=false')
+                            // Publish package to the Package Storage
+                            if (env.BRANCH_NAME == 'main') {
+                              withCredentials([string(credentialsId: "${GITHUB_TOKEN_CREDENTIALS}", variable: 'GITHUB_TOKEN')]) {
+                                sh(label: 'Configure Git user.name', script: 'git config --global user.name "Elastic Machine"')
+                                sh(label: 'Configure Git user.email', script: 'git config --global user.email "elasticmachine@users.noreply.github.com"')
+                                sh(label: "Publish integration: ${it}", script: '../../build/elastic-package publish -v --fork=false')
+                              }
                             }
                           }
-                        }
-                      } finally {
-                        dir("${BASE_DIR}") {
-                          archiveArtifacts(allowEmptyArchive: true, artifacts: 'build/test-results/*.xml')
-                          junit(allowEmptyResults: true, keepLongStdio: true, testResults: "build/test-results/*.xml")
-                          sh(label: "Collect Elastic stack logs", script: "build/elastic-package stack dump -v --output build/elastic-stack-dump/${it}")
-                          archiveArtifacts(allowEmptyArchive: true, artifacts: "build/elastic-stack-dump/${it}/logs/*.log, build/elastic-stack-dump/${it}/logs/fleet-server-internal/*")
-                          archiveArtifactsSafe("insecure-logs/${it}", "build/elastic-stack-dump/${it}/logs/elastic-agent-internal/*")
-                          archiveArtifactsSafe("insecure-logs/${it}/container-logs", "build/container-logs/*.log")
-                          sh(label: "Take down the Elastic stack", script: 'build/elastic-package stack down -v')
-                          stashCoverageReport()
+                        } finally {
+                          dir("${BASE_DIR}") {
+                            archiveArtifacts(allowEmptyArchive: true, artifacts: 'build/test-results/*.xml')
+                            junit(allowEmptyResults: true, keepLongStdio: true, testResults: "build/test-results/*.xml")
+                            sh(label: "Collect Elastic stack logs", script: "build/elastic-package stack dump -v --output build/elastic-stack-dump/${it}")
+                            archiveArtifacts(allowEmptyArchive: true, artifacts: "build/elastic-stack-dump/${it}/logs/*.log, build/elastic-stack-dump/${it}/logs/fleet-server-internal/*")
+                            archiveArtifactsSafe("insecure-logs/${it}", "build/elastic-stack-dump/${it}/logs/elastic-agent-internal/*")
+                            archiveArtifactsSafe("insecure-logs/${it}/container-logs", "build/container-logs/*.log")
+                            sh(label: "Take down the Elastic stack", script: 'build/elastic-package stack down -v')
+                            stashCoverageReport()
+                          }
                         }
                       }
                     }
