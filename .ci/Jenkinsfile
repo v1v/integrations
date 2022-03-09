@@ -67,7 +67,7 @@ pipeline {
                 integrations[it] = {
                   def uuid = UUID.randomUUID().toString()
                   dir(uuid) {
-                    container('ubuntu') {
+                    container('golang') {
                       stage("${it}: check") {
                         deleteDir()
                         unstashV2(name: 'source', bucket: "${JOB_GCS_BUCKET}", credentialsId: "${JOB_GCS_CREDENTIALS}")
